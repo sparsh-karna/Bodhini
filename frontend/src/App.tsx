@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { BrainCog } from 'lucide-react';
+import { useState } from 'react';
+// import { BrainCog } from 'lucide-react';
 import ChatInterface from './components/ChatInterface';
 import Sidebar from './components/Sidebar';
 import ChatHistory from './components/ChatHistory';
@@ -34,13 +34,8 @@ function App() {
           onCategorySelect={setSelectedCategory} 
           selectedCategory={selectedCategory} 
         />
+
       </div>
-      
-
-
-
-
-
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
         <ChatInterface category={selectedCategory} />
