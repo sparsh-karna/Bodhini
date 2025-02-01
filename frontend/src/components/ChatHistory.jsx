@@ -1,7 +1,7 @@
 import React from 'react';
 import { Clock, X, MessageCircle } from 'lucide-react';
 
-const ChatHistory: React.FC = () => {
+const ChatHistory = () => {
   const histories = [
     { title: 'Government ID Application', time: '2 hours ago' },
     { title: 'Hotel Booking', time: '5 hours ago' },

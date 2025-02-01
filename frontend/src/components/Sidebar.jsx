@@ -1,12 +1,7 @@
 import React from 'react';
 import { Plus, Clover as Government, Hotel, Calendar, ShoppingCart, Plane } from 'lucide-react';
 
-interface SidebarProps {
-  onCategorySelect: (category: string) => void;
-  selectedCategory: string;
-}
-
-const Sidebar: React.FC<SidebarProps> = ({ onCategorySelect, selectedCategory }) => {
+const Sidebar = ({ onCategorySelect, selectedCategory }) => {
   const categories = [
     { icon: Government, label: 'Government Services' },
     { icon: Hotel, label: 'Reservations' },

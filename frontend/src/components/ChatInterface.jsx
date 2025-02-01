@@ -1,36 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Mic, Image, FileText, Video, UserCog, Car, Heart, CreditCard, FileKey, Building } from 'lucide-react';
 
-interface Message {
-  id: string;
-  text: string;
-  sender: 'user' | 'bot';
-  timestamp: Date;
-  media?: {
-    type: 'image' | 'document' | 'audio';
-    url: string;
-    name?: string;
-  };
-}
-
-interface QuickAction {
-  id: string;
-  text: string;
-}
-
-interface ChatInterfaceProps {
-  category: string;
-}
-
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ category }) => {
+const ChatInterface = ({ category }) => {
   const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState([]);
   const [showServices, setShowServices] = useState(category === 'Government Services');
   const [isRecording, setIsRecording] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
   const governmentServices = [
     { icon: UserCog, title: 'Aadhaar Card', description: 'Update or apply for Aadhaar' },
@@ -41,11 +20,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ category }) => {
     { icon: Building, title: 'Property Registration', description: 'Register or transfer property' },
   ];
 
-  const quickActions: QuickAction[] = [
+  const quickActions = [
     { id: '1', text: 'How do I apply for a new passport?' },
     { id: '2', text: 'Update my Aadhaar card address' },
     { id: '3', text: 'Book a driving license test' },
-
   ];
 
   const scrollToBottom = () => {
@@ -72,11 +50,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ category }) => {
     }
   }, [category]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (!message.trim()) return;
 
-    const userMessage: Message = {
+    const userMessage = {
       id: Date.now().toString(),
       text: message,
       sender: 'user',
@@ -87,7 +65,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ category }) => {
     setMessage('');
 
     setTimeout(() => {
-      const botMessage: Message = {
+      const botMessage = {
         id: (Date.now() + 1).toString(),
         text: "I'll help you with that request. Please provide any additional details needed.",
         sender: 'bot',
@@ -98,8 +76,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ category }) => {
     }, 1000);
   };
 
-  const handleQuickAction = (action: QuickAction) => {
-    const userMessage: Message = {
+  const handleQuickAction = (action) => {
+    const userMessage = {
       id: Date.now().toString(),
       text: action.text,
       sender: 'user',
@@ -109,7 +87,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ category }) => {
     setMessages((prev) => [...prev, userMessage]);
 
     setTimeout(() => {
-      const botMessage: Message = {
+      const botMessage = {
         id: (Date.now() + 1).toString(),
         text: `I'll help you with: ${action.text}. Let me guide you through the process.`,
         sender: 'bot',
@@ -120,8 +98,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ category }) => {
     }, 1000);
   };
 
-  const handleServiceClick = (service: { title: string; description: string }) => {
-    const userMessage: Message = {
+  const handleServiceClick = (service) => {
+    const userMessage = {
       id: Date.now().toString(),
       text: `I need help with ${service.title}`,
       sender: 'user',
@@ -131,7 +109,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ category }) => {
     setMessages((prev) => [...prev, userMessage]);
 
     setTimeout(() => {
-      const botMessage: Message = {
+      const botMessage = {
         id: (Date.now() + 1).toString(),
         text: `I'll help you with ${service.title}. What specific assistance do you need with ${service.description.toLowerCase()}?`,
         sender: 'bot',
@@ -159,8 +137,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ category }) => {
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
         const audioUrl = URL.createObjectURL(audioBlob);
-        
-        const userMessage: Message = {
+
+        const userMessage = {
           id: Date.now().toString(),
           text: "Voice message",
           sender: 'user',
@@ -171,7 +149,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ category }) => {
           }
         };
 
-        setMessages(prev => [...prev, userMessage]);
+        setMessages((prev) => [...prev, userMessage]);
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -191,12 +169,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ category }) => {
   };
 
   // File Upload Handlers
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'document') => {
+  const handleFileUpload = (event, type) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     const fileUrl = URL.createObjectURL(file);
-    const userMessage: Message = {
+    const userMessage = {
       id: Date.now().toString(),
       text: type === 'image' ? 'Image uploaded' : `Document uploaded: ${file.name}`,
       sender: 'user',
@@ -208,7 +186,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ category }) => {
       }
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
 
     // Reset file input
     if (fileInputRef.current) {
@@ -329,45 +307,41 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ category }) => {
               className={`p-2 rounded-full hover:bg-gray-700 ${
                 isRecording ? 'text-red-500 bg-red-100' : 'text-gray-400 hover:text-blue-500'
               }`}
-              title={isRecording ? 'Stop recording' : 'Voice input'}
+              title={isRecording ? 'Stop recording' : 'Start recording'}
               onClick={isRecording ? stopRecording : startRecording}
             >
               <Mic className="h-5 w-5" />
             </button>
             <button
               type="button"
-              className="p-2 text-gray-400 hover:text-blue-500 rounded-full hover:bg-gray-700"
+              className="p-2 rounded-full text-gray-400 hover:text-blue-500"
               title="Upload image"
-              onClick={() => document.getElementById('image-upload')?.click()}
+              onClick={() => document.getElementById('image-upload').click()}
             >
               <Image className="h-5 w-5" />
             </button>
             <button
               type="button"
-              className="p-2 text-gray-400 hover:text-blue-500 rounded-full hover:bg-gray-700"
+              className="p-2 rounded-full text-gray-400 hover:text-blue-500"
               title="Upload document"
-              onClick={() => document.getElementById('document-upload')?.click()}
+              onClick={() => document.getElementById('document-upload').click()}
             >
               <FileText className="h-5 w-5" />
             </button>
-            <button
-              type="button"
-              className="p-2 text-gray-400 hover:text-blue-500 rounded-full hover:bg-gray-700"
-              title="Upload video"
-            >
-              <Video className="h-5 w-5" />
-            </button>
           </div>
+
           <input
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Type your message..."
-            className="flex-1 bg-gray-700 border border-gray-600 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-200"
+            className="flex-1 bg-gray-700 text-white rounded-full px-4 py-2 text-sm"
           />
+
           <button
             type="submit"
-            className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            className="p-2 rounded-full text-gray-400 hover:text-blue-500"
+            disabled={!message.trim()}
           >
             <Send className="h-5 w-5" />
           </button>

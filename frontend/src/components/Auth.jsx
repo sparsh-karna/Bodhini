@@ -1,16 +1,13 @@
 import React, { useState } from 'react';
 import { BrainCog, Lock, Mail } from 'lucide-react';
+import PropTypes from 'prop-types';
 
-interface AuthProps {
-  onAuthenticate: () => void;
-}
-
-const Auth: React.FC<AuthProps> = ({ onAuthenticate }) => {
+const Auth = ({ onAuthenticate }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     onAuthenticate();
   };
@@ -73,6 +70,10 @@ const Auth: React.FC<AuthProps> = ({ onAuthenticate }) => {
       </div>
     </div>
   );
+};
+
+Auth.propTypes = {
+  onAuthenticate: PropTypes.func.isRequired,
 };
 
 export default Auth;
