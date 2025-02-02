@@ -50,30 +50,50 @@ const ChatInterface = ({ category }) => {
     }
   }, [category]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!message.trim()) return;
-
+  
     const userMessage = {
       id: Date.now().toString(),
       text: message,
       sender: 'user',
       timestamp: new Date(),
     };
-
+  
     setMessages((prev) => [...prev, userMessage]);
     setMessage('');
-
-    setTimeout(() => {
+  
+    // Fetch response from Flask backend
+    try {
+      const response = await fetch('http://localhost:5001/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message }),
+      });
+      const data = await response.json();
+  
       const botMessage = {
         id: (Date.now() + 1).toString(),
-        text: "I'll help you with that request. Please provide any additional details needed.",
+        text: data.response,  // The response from the backend
         sender: 'bot',
         timestamp: new Date(),
       };
-
+  
       setMessages((prev) => [...prev, botMessage]);
-    }, 1000);
+    } catch (error) {
+      console.error('Error fetching from backend:', error);
+      const botMessage = {
+        id: (Date.now() + 1).toString(),
+        text: 'Sorry, there was an error processing your request. Please try again later.',
+        sender: 'bot',
+        timestamp: new Date(),
+      };
+  
+      setMessages((prev) => [...prev, botMessage]);
+    }
   };
 
   const handleQuickAction = (action) => {
