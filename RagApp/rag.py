@@ -12,7 +12,11 @@ from datetime import datetime
 from langchain.schema import Document
 
 # Load environment variables
+
 load_dotenv()
+
+os.environ["GOOGLE_API_KEY"] = os.getenv("GENAI_API_KEY")
+
 
 # Initialize session state
 if "chat_history" not in st.session_state:
@@ -56,7 +60,7 @@ def initialize_rag_components(chunks):
     )
     
     # Define the LLM (Gemini model)
-    model = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+    model = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=os.getenv("GENAI_API_KEY"))
     
     return retriever, model
 
