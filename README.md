@@ -115,7 +115,7 @@ We welcome contributions! Please see our contribution guidelines for details on 
 
 ## 📄 Licensing
 
-[Specify Open-Source License]
+MIT License
 
 ## 🏆 Key Advantages
 
@@ -126,4 +126,7 @@ We welcome contributions! Please see our contribution guidelines for details on 
 
 ## 📞 Contact & Support
 
-[Provide contact information or support channels]
+- [Sparsh Karna](mailto:sparsh2005karna@gmail.com)
+- [Akshat Majila](mailto:akshatmajila@gmail.com)
+- [Arkita Barua](mailto:arkitabarua11@gmail.com)
+- [Mishti Mattu](mailto:mishtimattu21@gmail.com)
