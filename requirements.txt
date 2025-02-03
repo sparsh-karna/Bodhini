@@ -1,0 +1,14 @@
+flask
+flask-cors
+python-dotenv
+numpy
+torch
+transformers
+requests
+PyPDF2
+langchain
+langchain-google-genai
+langchain-chroma
+langchain-huggingface
+langchain-core
+langchain-community

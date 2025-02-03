@@ -91,7 +91,7 @@ Bodhini is an advanced AI-powered multilingual chatbot designed to break down co
 ### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/your-organization/bodhini.git
+git clone https://github.com/your-organization/Bodhini.git
 
 # Setup virtual environment
 python -m venv venv
@@ -101,7 +101,8 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Run the application
-python app.py
+cd frontend
+npm run dev
 ```
 
 ## 🌐 Supported Languages
