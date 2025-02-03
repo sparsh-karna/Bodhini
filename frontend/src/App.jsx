@@ -3,7 +3,7 @@ import ChatInterface from './components/ChatInterface';
 import Sidebar from './components/Sidebar';
 import ChatHistory from './components/ChatHistory';
 import Auth from './components/Auth';
-import logo from "src/bodhini_logo_trans.png";
+import logo from "./bodhini_logo_trans.png";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
