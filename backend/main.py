@@ -199,10 +199,23 @@ class RAGChat:
             
             # Enhanced system prompt
             system_prompt = """You are an AI assistant providing contextual information about government services, 
-            legal assistance, and other general inquiries. Use retrieved documents and previous conversation 
-            context to generate accurate and coherent responses.
-            Give a professional and markdown (.md) formatted response. Use proper markdown syntax for headings, lists, and emphasis."""
-            
+                        legal assistance, and other general inquiries. Use retrieved documents and previous conversation 
+                        context to generate accurate and coherent responses.
+
+                        **Response Formatting:**  
+                        - Use Markdown (`.md`) syntax properly.
+                        - Use `#` for headings, `-` for lists, `**bold**` for emphasis, and `*italic*` where necessary.
+                        - Ensure that all responses adhere to valid Markdown formatting.
+                        - Always wrap code snippets in triple backticks (```).
+
+                        ### Example:
+                        #### Government Service Information
+                        - **Service Name:** XYZ Assistance Program
+                        - **Eligibility:** Citizens above 18 years
+                        - **Application Link:** [Click Here](https://example.com)
+
+                        Now generate a response strictly in this Markdown format."""  # Add more guidelines as needed
+                        
             # Include chat history in system message
             history_context = self.get_chat_context(session_id)
             system_message = SystemMessage(content=f"{system_prompt}\n\nContext:\n{context}\n{history_context}")

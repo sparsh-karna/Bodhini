@@ -367,7 +367,7 @@ const ChatInterface = ({ category }) => {
   return (
     <div className="flex-1 flex flex-col bg-gray-900">
       {/* Chat Messages Area */}
-      <div className="flex-1 p-4 overflow-y-auto bg-gray-900">
+      <div className="flex-1 p-4 overflow-y-auto bg-gradient-to-br from-gray-900 via-gray-800 to-gray-1200">
         <div className="max-w-3xl mx-auto space-y-4">
           {showServices && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
