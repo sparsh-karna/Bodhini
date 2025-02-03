@@ -36,7 +36,7 @@ class RAGChat:
         # Initialize retriever
         self.retriever = self.vector_store.as_retriever(
             search_type="similarity",
-            search_kwargs={"k": 3}
+            search_kwargs={"k": 3}  # You can tweak this number based on your needs
         )
         
         # Initialize LLM
@@ -54,23 +54,28 @@ class RAGChat:
             # Retrieve relevant documents
             relevant_docs = self.retriever.invoke(question)
             
-            # Prepare the context
+            # If no documents are found, fallback response
+            if not relevant_docs:
+                return "Sorry, I couldn't find relevant documents for your query."
+            
+            # Prepare the context by joining the content of the relevant documents
             context = "\n\n".join([doc.page_content for doc in relevant_docs])
             
             # System and user messages for the prompt
             system_prompt = """You are an AI assistant providing information about government services, 
             legal assistance, and other general inquiries. You have access to relevant documents and 
-            can use them to generate accurate responses."""
+            can use them to generate accurate responses. Strictly adhere to the information in the documents."""
             
+            # Include the context in the system message
+            system_message = SystemMessage(content=f"{system_prompt}\n\nContext:\n{context}")
             user_message = HumanMessage(content=question)
-            system_message = SystemMessage(content=system_prompt)
             
             # Generate the response
             response = self.model.invoke([system_message, user_message])
             return response.content
         except Exception as e:
             return f"Error: {str(e)}"
-
+        
 # Initialize RAGChat instance
 rag_chat = RAGChat()
 
