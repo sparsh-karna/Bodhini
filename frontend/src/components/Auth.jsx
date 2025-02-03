@@ -17,7 +17,7 @@ const Auth = ({ onAuthenticate }) => {
       <div className="max-w-md w-full bg-gray-800 p-8 rounded-2xl shadow-2xl border border-gray-700 space-y-6">
       <div className="text-center">
   <div className="flex justify-center">
-    <img src="src/bodhini_logo_trans.png" alt="Bodhini Logo" className="h-18 w-16" />
+    <img src="/bodhini_logo_trans.png" alt="Bodhini Logo" className="h-18 w-16" />
   </div>
   <h2 className="mt-4 text-3xl font-bold text-gray-100">
     Welcome to <span className="text-blue-500">Bodhini</span>

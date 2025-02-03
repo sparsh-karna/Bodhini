@@ -3,7 +3,6 @@ import ChatInterface from './components/ChatInterface';
 import Sidebar from './components/Sidebar';
 import ChatHistory from './components/ChatHistory';
 import Auth from './components/Auth';
-import logo from "./bodhini_logo_trans.png";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -37,7 +36,7 @@ function App() {
       <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col sticky top-0 h-screen z-10">
         <div className="p-4 border-b border-gray-700 flex items-center space-x-2">
           <img
-            src={logo} 
+            src="/bodhini_logo_trans.png" 
             alt="Bodhini Logo"
             className="h-14 w-10"
           />
