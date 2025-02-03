@@ -7,6 +7,7 @@ from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from typing import List, Dict
+from ensamble_retriever import modify_rag_chat_retriever
 import json
 
 # Load environment variables
@@ -78,6 +79,7 @@ class RAGChat:
         
 # Initialize RAGChat instance
 rag_chat = RAGChat()
+rag_chat = modify_rag_chat_retriever(rag_chat)
 
 @app.route('/chat', methods=['POST'])
 def chat():
