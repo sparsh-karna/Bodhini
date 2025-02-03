@@ -19,6 +19,69 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
+class SpeechProcessor:
+    def __init__(self):
+        self.sarvam_api_key = os.getenv("SARVAM_API_KEY")
+        self.google_api_key = os.getenv("GOOGLE_API_KEY")
+        
+        if not self.sarvam_api_key or not self.google_api_key:
+            raise ValueError("API keys are missing. Please set SARVAM_API_KEY and GOOGLE_API_KEY in .env file.")
+
+    def speech_to_text(self, audio_file, language_code='hi-IN'):
+        """Convert speech to text using Sarvam AI"""
+        url = "https://api.sarvam.ai/speech-to-text"
+        
+        payload = {
+            'model': 'saarika:v1',
+            'language_code': language_code,
+            'with_timesteps': 'false'
+        }
+        
+        files = [
+            ('file', (audio_file.filename, audio_file.read(), 'audio/wav'))
+        ]
+        
+        headers = {
+            'api-subscription-key': self.sarvam_api_key
+        }
+        
+        try:
+            response = requests.post(url, headers=headers, data=payload, files=files)
+            response.raise_for_status()
+            return response.text
+        except requests.exceptions.RequestException as e:
+            print(f"Speech-to-Text Error: {e}")
+            return None
+
+    def detect_language(self, text):
+        """Detect language using Google Translation API"""
+        url = "https://translation.googleapis.com/language/translate/v2/detect"
+        params = {"key": self.google_api_key}
+        data = {"q": text}
+
+        try:
+            response = requests.post(url, params=params, json=data)
+            response.raise_for_status()
+            result = response.json()
+            return result["data"]["detections"][0][0]["language"]
+        except Exception as e:
+            print(f"Language Detection Error: {e}")
+            return None
+
+    def translate_text(self, text, target_language="en"):
+        """Translate text using Google Translation API"""
+        url = "https://translation.googleapis.com/language/translate/v2"
+        params = {"key": self.google_api_key}
+        data = {"q": text, "target": target_language}
+
+        try:
+            response = requests.post(url, params=params, json=data)
+            response.raise_for_status()
+            result = response.json()
+            return result["data"]["translations"][0]["translatedText"]
+        except Exception as e:
+            print(f"Translation Error: {e}")
+            return None
 class RAGChat:
     def __init__(self):
         # API Key Setup
@@ -151,6 +214,43 @@ class RAGChat:
 
 # Initialize RAGChat instance
 rag_chat = RAGChat()
+speech_processor = SpeechProcessor()
+
+@app.route('/speech-to-text', methods=['POST'])
+def process_speech():
+    try:
+        if 'audio' not in request.files:
+            return jsonify({'error': 'No audio file uploaded'}), 400
+        
+        audio_file = request.files['audio']
+        session_id = request.form.get('session_id', 'default')
+        
+        # Process speech to text
+        speech_text = speech_processor.speech_to_text(audio_file)
+        
+        if not speech_text:
+            return jsonify({'error': 'Speech-to-Text processing failed'}), 500
+        
+        # Detect language and translate if needed
+        detected_lang = speech_processor.detect_language(speech_text)
+        
+        if detected_lang != 'en':
+            translated_text = speech_processor.translate_text(speech_text)
+            if not translated_text:
+                return jsonify({'error': 'Translation failed'}), 500
+            speech_text = translated_text
+        
+        # Get chat response
+        response = rag_chat.get_chat_response(speech_text, session_id)
+        
+        return jsonify({
+            'original_text': speech_text,
+            'response': response,
+            'session_id': session_id
+        }), 200
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/chat', methods=['POST'])
 def chat():

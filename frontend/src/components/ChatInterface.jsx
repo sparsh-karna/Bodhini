@@ -11,6 +11,7 @@ const ChatInterface = ({ category }) => {
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const [isProcessingSpeech, setIsProcessingSpeech] = useState(false);
 
   const governmentServices = [
     { icon: UserCog, title: 'Aadhaar Card', description: 'Update or apply for Aadhaar' },
@@ -166,22 +167,62 @@ const ChatInterface = ({ category }) => {
         }
       };
 
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
         const audioUrl = URL.createObjectURL(audioBlob);
 
-        const userMessage = {
-          id: Date.now().toString(),
-          text: "Voice message",
-          sender: 'user',
-          timestamp: new Date(),
-          media: {
-            type: 'audio',
-            url: audioUrl
-          }
-        };
+        // Prepare form data for upload
+        const formData = new FormData();
+        formData.append('audio', audioBlob, 'recording.wav');
+        formData.append('session_id', sessionId);
 
-        setMessages((prev) => [...prev, userMessage]);
+        setIsProcessingSpeech(true);
+
+        try {
+          const response = await fetch('http://localhost:5001/speech-to-text', {
+            method: 'POST',
+            body: formData
+          });
+          const data = await response.json();
+
+          if (data.error) {
+            throw new Error(data.error);
+          }
+
+          // Add user's voice message
+          const userMessage = {
+            id: Date.now().toString(),
+            text: data.original_text,
+            sender: 'user',
+            timestamp: new Date(),
+            media: {
+              type: 'audio',
+              url: audioUrl
+            }
+          };
+
+          // Add bot's response
+          const botMessage = {
+            id: (Date.now() + 1).toString(),
+            text: data.response,
+            sender: 'bot',
+            timestamp: new Date()
+          };
+
+          setMessages((prev) => [...prev, userMessage, botMessage]);
+        } catch (error) {
+          console.error('Speech processing error:', error);
+          const errorMessage = {
+            id: (Date.now() + 1).toString(),
+            text: `Sorry, I couldn't process your voice message: ${error.message}`,
+            sender: 'bot',
+            timestamp: new Date()
+          };
+          setMessages((prev) => [...prev, errorMessage]);
+        } finally {
+          setIsProcessingSpeech(false);
+        }
+
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -338,11 +379,14 @@ const ChatInterface = ({ category }) => {
               type="button"
               className={`p-2 rounded-full hover:bg-gray-700 ${
                 isRecording ? 'text-red-500 bg-red-100' : 'text-gray-400 hover:text-blue-500'
-              }`}
-              title={isRecording ? 'Stop recording' : 'Start recording'}
-              onClick={isRecording ? stopRecording : startRecording}
+              } ${isProcessingSpeech ? 'opacity-50 cursor-not-allowed' : ''}`}
+              title={isProcessingSpeech ? 'Processing...' : 
+                    (isRecording ? 'Stop recording' : 'Start recording')}
+              onClick={isProcessingSpeech ? null : (isRecording ? stopRecording : startRecording)}
+              disabled={isProcessingSpeech}
             >
               <Mic className="h-5 w-5" />
+              {isProcessingSpeech && <span className="ml-2 text-xs">Processing...</span>}
             </button>
             <button
               type="button"
