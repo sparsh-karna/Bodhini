@@ -14,7 +14,7 @@ const ChatInterface = ({ category }) => {
   const [showServices, setShowServices] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [loading, setLoading] = useState(false); // Add loading state
-  const [sessionId, setSessionId] = useState(null);
+  const [sessionId, setSessionId] = useState(null)
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);

@@ -15,6 +15,11 @@ from transformers import AutoModel, AutoTokenizer
 # Load environment variables
 load_dotenv()
 
+# Debug print statements to verify environment variables
+print("GENAI_API_KEY:", os.getenv("GENAI_API_KEY"))
+print("GOOGLE_API_KEY:", os.getenv("GOOGLE_API_KEY"))
+print("SARVAM_API_KEY:", os.getenv("SARVAM_API_KEY"))
+
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
