@@ -14,6 +14,7 @@ const ChatInterface = ({ category }) => {
   const [showServices, setShowServices] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [loading, setLoading] = useState(false); // Add loading state
+  const [sessionId, setSessionId] = useState(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -127,6 +128,13 @@ const ChatInterface = ({ category }) => {
   };
 
   useEffect(() => {
+    // Generate a unique session ID when the component mounts
+    if (!sessionId) {
+      setSessionId(`session_${Date.now()}`);
+    }
+  }, []);
+
+  useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
@@ -160,14 +168,18 @@ const ChatInterface = ({ category }) => {
     setMessage('');
     setLoading(true); // Set loading to true when starting to fetch the response
   
-    // Fetch response from Flask backend
+    // Fetch response from Flask backend with session ID
     try {
+      // hello
       const response = await fetch('http://localhost:5001/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ 
+          message, 
+          session_id: sessionId 
+        }),
       });
       const data = await response.json();
     
