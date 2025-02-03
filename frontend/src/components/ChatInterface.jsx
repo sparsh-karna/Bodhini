@@ -171,7 +171,6 @@ const ChatInterface = ({ category }) => {
   
     // Fetch response from Flask backend with session ID
     try {
-      // hello
       const response = await fetch('http://localhost:5001/chat', {
         method: 'POST',
         headers: {
@@ -186,7 +185,7 @@ const ChatInterface = ({ category }) => {
     
       const botMessage = {
         id: (Date.now() + 1).toString(),
-        text: <ReactMarkdown>{data.response}</ReactMarkdown>, // Convert Markdown to HTML
+        text: data.response, // Store the raw Markdown response
         sender: 'bot',
         timestamp: new Date(),
       };
@@ -203,7 +202,7 @@ const ChatInterface = ({ category }) => {
 
       setMessages((prev) => [...prev, botMessage]);
     } finally {
-      setLoading(); // Set loading to false when the response has been processed
+      setLoading(false); // Set loading to false when the response has been processed
     }
   };
 
@@ -394,7 +393,11 @@ const ChatInterface = ({ category }) => {
         <div
           className={`max-w-lg rounded-lg px-4 py-2 ${msg.sender === 'user' ? 'bg-blue-700 text-white' : 'bg-gray-800 text-gray-200 border border-gray-700'}`}
         >
-          <p>{msg.text}</p>
+          {msg.sender === 'bot' ? (
+            <ReactMarkdown>{msg.text}</ReactMarkdown>
+          ) : (
+            <p>{msg.text}</p>
+          )}
           {msg.media && (
             <div className="mt-2">
               {msg.media.type === 'image' && (
@@ -540,8 +543,7 @@ const ChatInterface = ({ category }) => {
 
           <button
             type="submit"
-            class
-Name="p-2 rounded-full text-gray-400 hover:text-blue-500"
+            className="p-2 rounded-full text-gray-400 hover:text-blue-500"
             disabled={!message.trim()}
           >
             <Send className="h-5 w-5" />

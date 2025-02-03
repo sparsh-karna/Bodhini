@@ -11,6 +11,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_core.documents import Document
 from typing import List, Dict
 from transformers import AutoModel, AutoTokenizer
+import requests
 
 # Load environment variables
 load_dotenv()
@@ -52,8 +53,8 @@ class SpeechProcessor:
         
         try:
             response = requests.post(url, headers=headers, data=payload, files=files)
-            response.raise_for_status()
-            return response.text
+            json_response = response.json()
+            return json_response.get('transcript', '')
         except requests.exceptions.RequestException as e:
             print(f"Speech-to-Text Error: {e}")
             return None
@@ -87,6 +88,7 @@ class SpeechProcessor:
         except Exception as e:
             print(f"Translation Error: {e}")
             return None
+
 class RAGChat:
     def __init__(self):
         # API Key Setup
@@ -198,7 +200,8 @@ class RAGChat:
             # Enhanced system prompt
             system_prompt = """You are an AI assistant providing contextual information about government services, 
             legal assistance, and other general inquiries. Use retrieved documents and previous conversation 
-            context to generate accurate and coherent responses."""
+            context to generate accurate and coherent responses.
+            Give a professional and markdown (.md) formatted response. Use proper markdown syntax for headings, lists, and emphasis."""
             
             # Include chat history in system message
             history_context = self.get_chat_context(session_id)
@@ -236,9 +239,10 @@ def process_speech():
         if not speech_text:
             return jsonify({'error': 'Speech-to-Text processing failed'}), 500
         
-        # Detect language and translate if needed
+        # Detect language
         detected_lang = speech_processor.detect_language(speech_text)
         
+        # Translate speech text to English if detected language is not English
         if detected_lang != 'en':
             translated_text = speech_processor.translate_text(speech_text)
             if not translated_text:
@@ -247,6 +251,12 @@ def process_speech():
         
         # Get chat response
         response = rag_chat.get_chat_response(speech_text, session_id)
+        
+        # Translate response back to detected language if necessary
+        if detected_lang != 'en':
+            response = speech_processor.translate_text(response, target_language=detected_lang)
+            if not response:
+                return jsonify({'error': 'Translation failed'}), 500
         
         return jsonify({
             'original_text': speech_text,
@@ -267,7 +277,24 @@ def chat():
         if not message:
             return jsonify({'response': 'No message provided'}), 400
         
+        # Detect language
+        detected_lang = speech_processor.detect_language(message)
+        
+        # Translate message to English if detected language is not English
+        if detected_lang != 'en':
+            translated_message = speech_processor.translate_text(message)
+            if not translated_message:
+                return jsonify({'response': 'Translation failed'}), 500
+            message = translated_message
+        
         response = rag_chat.get_chat_response(message, session_id)
+        
+        # Translate response back to detected language if necessary
+        if detected_lang != 'en':
+            response = speech_processor.translate_text(response, target_language=detected_lang)
+            if not response:
+                return jsonify({'response': 'Translation failed'}), 500
+        
         return jsonify({
             'response': response,
             'session_id': session_id
