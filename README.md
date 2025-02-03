@@ -20,7 +20,7 @@ Bodhini is an advanced AI-powered multilingual chatbot designed to break down co
 - **Backend**: Python, Flask
 - **Deployment**: Containerized Microservices
 
-## 🌈 Feature Ecosystem
+## 🛡️ Feature Ecosystem
 
 ### 1. Intelligent Language Processing
 
