@@ -6,6 +6,7 @@ const ChatInterface = ({ category }) => {
   const [messages, setMessages] = useState([]);
   const [showServices, setShowServices] = useState(category === 'Government Services');
   const [isRecording, setIsRecording] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -29,6 +30,13 @@ const ChatInterface = ({ category }) => {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  useEffect(() => {
+    // Generate a unique session ID when the component mounts
+    if (!sessionId) {
+      setSessionId(`session_${Date.now()}`);
+    }
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
@@ -64,20 +72,24 @@ const ChatInterface = ({ category }) => {
     setMessages((prev) => [...prev, userMessage]);
     setMessage('');
   
-    // Fetch response from Flask backend
+    // Fetch response from Flask backend with session ID
     try {
+      // hello
       const response = await fetch('http://localhost:5001/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ 
+          message, 
+          session_id: sessionId 
+        }),
       });
       const data = await response.json();
   
       const botMessage = {
         id: (Date.now() + 1).toString(),
-        text: data.response,  // The response from the backend
+        text: data.response,
         sender: 'bot',
         timestamp: new Date(),
       };

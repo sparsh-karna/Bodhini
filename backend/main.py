@@ -1,14 +1,16 @@
+import os
+import numpy as np
+import torch
+from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import os
-from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_core.documents import Document
 from typing import List, Dict
-from ensamble_retriever import modify_rag_chat_retriever
-import json
+from transformers import AutoModel, AutoTokenizer
 
 # Load environment variables
 load_dotenv()
@@ -19,82 +21,152 @@ CORS(app)
 
 class RAGChat:
     def __init__(self):
+        # API Key Setup
         self.api_key = os.getenv("GENAI_API_KEY")
         if not self.api_key:
             raise ValueError("API key is missing. Please set GENAI_API_KEY in .env file.")
         
-        # Initialize embeddings
+        # Initialize Embeddings
         self.embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-mpnet-base-v2"
         )
         
-        # Load the vector store
+        # Initialize Vector Store
         self.vector_store = Chroma(
-            persist_directory="./vector_db",
+            persist_directory="./vector_db", 
             embedding_function=self.embeddings
         )
         
-        # Initialize retriever
-        self.retriever = self.vector_store.as_retriever(
-            search_type="similarity",
-            search_kwargs={"k": 3}  # You can tweak this number based on your needs
-        )
-        
-        # Initialize LLM
+        # Initialize Language Model
         self.model = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
+            model="gemini-1.5-flash", 
             google_api_key=self.api_key
         )
         
-        # Initialize chat history storage
+        # Chat History Management
         self.chat_histories: Dict[str, List] = {}
+        self.MAX_HISTORY_LENGTH = 5
 
-    def get_chat_response(self, question: str) -> str:
-        """Generate response using RAG."""
+    def cosine_similarity(self, vec1, vec2):
+        """Compute cosine similarity between two vectors."""
+        vec1 = np.asarray(vec1)
+        vec2 = np.asarray(vec2)
+        
+        dot_product = np.dot(vec1, vec2)
+        magnitude1 = np.linalg.norm(vec1)
+        magnitude2 = np.linalg.norm(vec2)
+        
+        if magnitude1 == 0 or magnitude2 == 0:
+            return 0.0
+        
+        return dot_product / (magnitude1 * magnitude2)
+
+    def add_to_chat_history(self, session_id: str, role: str, message: str):
+        """Add a message to the session's chat history."""
+        if session_id not in self.chat_histories:
+            self.chat_histories[session_id] = []
+        
+        # Maintain maximum history length
+        if len(self.chat_histories[session_id]) >= self.MAX_HISTORY_LENGTH * 2:
+            self.chat_histories[session_id] = self.chat_histories[session_id][-self.MAX_HISTORY_LENGTH * 2:]
+        
+        self.chat_histories[session_id].append({
+            'role': role,
+            'content': message
+        })
+
+    def get_chat_context(self, session_id: str) -> str:
+        """Compile chat history context."""
+        if session_id not in self.chat_histories:
+            return ""
+        
+        history_context = "\nPrevious Conversation Context:\n"
+        for msg in self.chat_histories[session_id]:
+            history_context += f"{msg['role'].upper()}: {msg['content']}\n"
+        
+        return history_context
+
+    def hybrid_retrieval(self, question: str, session_id: str = 'default') -> List[Document]:
+        """Perform ensemble retrieval using multiple search methods."""
+        # Enhance query with chat history context
+        history_context = self.get_chat_context(session_id)
+        enhanced_query = f"{history_context}\n\nCurrent Question: {question}"
+
+        # Retrieve documents
         try:
+            docs = self.vector_store.similarity_search(enhanced_query, k=3)
+            
+            # Compute and rank documents by relevance
+            query_embedding = self.embeddings.embed_query(enhanced_query)
+            
+            # Score and sort documents
+            scored_docs = []
+            for doc in docs:
+                doc_embedding = self.embeddings.embed_query(doc.page_content)
+                similarity_score = self.cosine_similarity(query_embedding, doc_embedding)
+                scored_docs.append((doc, similarity_score))
+            
+            # Sort by relevance
+            sorted_docs = sorted(scored_docs, key=lambda x: x[1], reverse=True)
+            
+            return [doc for doc, _ in sorted_docs]
+        
+        except Exception as e:
+            print(f"Retrieval error: {e}")
+            return []
+
+    def get_chat_response(self, question: str, session_id: str = 'default') -> str:
+        """Generate response using ensemble retrieval and chat history."""
+        try:
+            # Add user's question to chat history
+            self.add_to_chat_history(session_id, 'user', question)
+            
             # Retrieve relevant documents
-            relevant_docs = self.retriever.invoke(question)
+            relevant_docs = self.hybrid_retrieval(question, session_id)
             
-            # If no documents are found, fallback response
-            if not relevant_docs:
-                return "Sorry, I couldn't find relevant documents for your query."
-            
-            # Prepare the context by joining the content of the relevant documents
+            # Prepare context
             context = "\n\n".join([doc.page_content for doc in relevant_docs])
             
-            # System and user messages for the prompt
-            system_prompt = """You are an AI assistant providing information about government services, 
-            legal assistance, and other general inquiries. You have access to relevant documents and 
-            can use them to generate accurate responses. Strictly adhere to the information in the documents."""
+            # Enhanced system prompt
+            system_prompt = """You are an AI assistant providing contextual information about government services, 
+            legal assistance, and other general inquiries. Use retrieved documents and previous conversation 
+            context to generate accurate and coherent responses."""
             
-            # Include the context in the system message
-            system_message = SystemMessage(content=f"{system_prompt}\n\nContext:\n{context}")
+            # Include chat history in system message
+            history_context = self.get_chat_context(session_id)
+            system_message = SystemMessage(content=f"{system_prompt}\n\nContext:\n{context}\n{history_context}")
             user_message = HumanMessage(content=question)
             
-            # Generate the response
+            # Generate response
             response = self.model.invoke([system_message, user_message])
+            
+            # Add AI's response to chat history
+            self.add_to_chat_history(session_id, 'assistant', response.content)
+            
             return response.content
-        except Exception as e:
-            return f"Error: {str(e)}"
         
+        except Exception as e:
+            print(f"Response generation error: {e}")
+            return f"Sorry, I encountered an error: {str(e)}"
+
 # Initialize RAGChat instance
 rag_chat = RAGChat()
-rag_chat = modify_rag_chat_retriever(rag_chat)
 
 @app.route('/chat', methods=['POST'])
 def chat():
     try:
-        # Get the incoming message from the request
         data = request.get_json()
         message = data.get('message', '')
+        session_id = data.get('session_id', 'default')
         
         if not message:
             return jsonify({'response': 'No message provided'}), 400
         
-        # Get the chat response
-        response = rag_chat.get_chat_response(message)
-        
-        return jsonify({'response': response}), 200
+        response = rag_chat.get_chat_response(message, session_id)
+        return jsonify({
+            'response': response,
+            'session_id': session_id
+        }), 200
     except Exception as e:
         return jsonify({'response': f"Error: {str(e)}"}), 500
 
