@@ -171,7 +171,7 @@ const ChatInterface = ({ category }) => {
   
     // Fetch response from Flask backend with session ID
     try {
-      const response = await fetch('http://localhost:5001/chat', {
+      const response = await fetch('https://5e88-122-187-117-179.ngrok-free.app/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -276,7 +276,7 @@ const ChatInterface = ({ category }) => {
         setIsProcessingSpeech(true);
 
         try {
-          const response = await fetch('http://localhost:5001/speech-to-text', {
+          const response = await fetch('https://5e88-122-187-117-179.ngrok-free.app/speech-to-text', {
             method: 'POST',
             body: formData
           });

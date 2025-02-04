@@ -1,0 +1,15 @@
+[build]
+# The directory where your app's build artifacts are placed
+publish = "build"
+# The command to run during the build process
+command = "pip install -r requirements.txt && gunicorn main:app -b 0.0.0.0:5000"
+
+[build.environment]
+# Environment variables to be set during the build process
+GENAI_API_KEY = "AIzaSyD-6xNB4ji95hytnvkUKfdhDRlRpsO-tHY"
+GOOGLE_API_KEY = "AIzaSyDC1PXjCGivanw_m80rGDMnZYlQneO1kSw"
+SARVAM_API_KEY = "d9a19832-fcfe-477c-908b-c355ddc02951"
+
+
+[[plugins]]
+package = "@netlify/plugin-functions-install-core"
