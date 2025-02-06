@@ -1,9 +1,14 @@
 import os
 import numpy as np
+import re
+from fuzzywuzzy import fuzz
 import torch
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_bcrypt import Bcrypt
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from pymongo import MongoClient
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -16,11 +21,85 @@ import requests
 # Load environment variables
 load_dotenv()
 
+# Initialize Flask app
+app = Flask(__name__)
+CORS(app)
+
+# Authentication Setup
+bcrypt = Bcrypt(app)
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET')
+jwt = JWTManager(app)
+
+# MongoDB Setup
+client = MongoClient(os.getenv('MONGO_URI'))
+db = client['auth_db']
+users_collection = db['users']
+
+# Authentication Routes
+@app.route('/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+
+    if users_collection.find_one({"email": email}):
+        return jsonify({"message": "User already exists"}), 400
+
+    hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+    users_collection.insert_one({"email": email, "password": hashed_password})
+
+    return jsonify({"message": "User registered successfully"}), 201
+
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+
+    user = users_collection.find_one({"email": email})
+    if not user or not bcrypt.check_password_hash(user['password'], password):
+        return jsonify({"message": "Invalid credentials"}), 400
+
+    access_token = create_access_token(identity=str(user['_id']))
+    return jsonify({"token": access_token, "userId": str(user['_id'])})
+
+
 # Debug print statements to verify environment variables
 print("GENAI_API_KEY:", os.getenv("GENAI_API_KEY"))
 print("GOOGLE_API_KEY:", os.getenv("GOOGLE_API_KEY"))
 print("SARVAM_API_KEY:", os.getenv("SARVAM_API_KEY"))
 
+# Keyword list
+INSURANCE_KEYWORDS = {
+    "insurance", "policy", "premium", "claim", "coverage", "benefits", "payout", "sum assured",
+    "tenure", "riders", "maturity", "max life", "maxlife", "max life insurance", "maxlife insurance",
+    "maxlife claim", "maxlife premium", "maxlife policy", "maxlife customer care", "maxlife payout",
+    "maxlife fund value", "maxlife surrender value", "maxlife maturity", "LIC", "Life Insurance Corporation",
+    "LIC India", "LIC policy", "LIC premium", "LIC claim", "LIC surrender value", "LIC maturity",
+    "LIC pension", "LIC annuity", "LIC loan", "LIC Jeevan", "LIC term plan", "LIC endowment",
+    "LIC agent", "LIC customer care", "term plan", "endowment plan", "ULIP", "whole life insurance",
+    "pension plan", "child plan", "health insurance", "savings plan", "retirement plan", "investment plan",
+    "death claim", "maturity claim", "surrender policy", "lapse policy", "renew policy", "refund premium",
+    "settlement", "bonus calculation", "loan against policy", "free-look period", "tax benefits",
+    "section 80C", "income tax rebate", "nominee", "sum insured", "accidental cover", "health rider",
+    "wealth creation", "financial planning", "policy bond"
+}
+
+def contains_insurance_keywords(query: str) -> bool:
+    """Check if the query contains insurance-related keywords with fuzzy matching."""
+    words = query.lower().split()
+    
+    # Direct match
+    for word in words:
+        if word in INSURANCE_KEYWORDS:
+            return True
+
+    # Fuzzy match (checks similarity)
+    for keyword in INSURANCE_KEYWORDS:
+        if any(fuzz.partial_ratio(word, keyword) > 80 for word in words):
+            return True
+            
+    return False
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
@@ -33,13 +112,13 @@ class SpeechProcessor:
         if not self.sarvam_api_key or not self.google_api_key:
             raise ValueError("API keys are missing. Please set SARVAM_API_KEY and GOOGLE_API_KEY in .env file.")
 
-    def speech_to_text(self, audio_file, language_code='hi-IN'):
+    def speech_to_text(self, audio_file,):
         """Convert speech to text using Sarvam AI"""
         url = "https://api.sarvam.ai/speech-to-text"
         
         payload = {
-            'model': 'saarika:v1',
-            'language_code': language_code,
+            'model': 'saarika:v2',
+            'language_code': 'unknown',
             'with_timesteps': 'false'
         }
         
@@ -160,7 +239,7 @@ class RAGChat:
         """Perform ensemble retrieval using multiple search methods."""
         # Enhance query with chat history context
         history_context = self.get_chat_context(session_id)
-        enhanced_query = f"{history_context}\n\nCurrent Question: {question}"
+        enhanced_query = f"{question}"
 
         # Retrieve documents
         try:
@@ -190,12 +269,18 @@ class RAGChat:
         try:
             # Add user's question to chat history
             self.add_to_chat_history(session_id, 'user', question)
+
+            context = ""
             
             # Retrieve relevant documents
-            relevant_docs = self.hybrid_retrieval(question, session_id)
-            
-            # Prepare context
-            context = "\n\n".join([doc.page_content for doc in relevant_docs])
+            if contains_insurance_keywords(question):
+                print("Triggering RAG search...")
+                relevant_docs = self.hybrid_retrieval(question, session_id)
+                print("Documents retrieved:", len(relevant_docs))
+                context = "\n\n".join([doc.page_content for doc in relevant_docs])
+            else:
+                print("Skipping RAG search, directly invoking LLM...")
+                context = ""
             
             # Enhanced system prompt
             system_prompt = """You are an AI assistant providing contextual information about government services, 
@@ -218,7 +303,7 @@ class RAGChat:
                         
             # Include chat history in system message
             history_context = self.get_chat_context(session_id)
-            system_message = SystemMessage(content=f"{system_prompt}\n\nContext:\n{context}")
+            system_message = SystemMessage(content=f"{system_prompt}\n\nContext:\n{context}\n\n{history_context}")
             user_message = HumanMessage(content=question)
             
             # Generate response
@@ -254,6 +339,7 @@ def process_speech():
         
         # Detect language
         detected_lang = speech_processor.detect_language(speech_text)
+        print("Detected language:", detected_lang)
         
         # Translate speech text to English if detected language is not English
         if detected_lang != 'en':
