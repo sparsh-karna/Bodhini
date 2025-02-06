@@ -199,7 +199,7 @@ class RAGChat:
             
             # Enhanced system prompt
             system_prompt = """You are an AI assistant providing contextual information about government services, 
-                        legal assistance, and other general inquiries. Use retrieved documents and previous conversation 
+                        personal chatbot and other general inquiries. Use retrieved documents and previous conversation 
                         context to generate accurate and coherent responses.
 
                         **Response Formatting:**  
@@ -218,7 +218,7 @@ class RAGChat:
                         
             # Include chat history in system message
             history_context = self.get_chat_context(session_id)
-            system_message = SystemMessage(content=f"{system_prompt}\n\nContext:\n{context}\n{history_context}")
+            system_message = SystemMessage(content=f"{system_prompt}\n\nContext:\n{context}")
             user_message = HumanMessage(content=question)
             
             # Generate response
