@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BrainCog, Lock, Mail } from 'lucide-react';
 import PropTypes from 'prop-types';
 import axios from 'axios';
@@ -8,6 +8,48 @@ const Auth = ({ onAuthenticate }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [autoPlay, setAutoPlay] = useState(true);
+
+  const slides = [
+    {
+      title: "Welcome to Bodhini",
+      subtitle: "Your Intelligent Multilingual Assistant",
+      image: "img2.jpg"
+    },
+    {
+      title: "Communicate Seamlessly",
+      subtitle: "Break language barriers effortlessly",
+      image: "img2.jpg"
+    },
+    {
+      title: "AI-Powered Intelligence",
+      subtitle: "Get smart responses in any language",
+      image: "img2.jpg"
+    }
+  ];
+
+  const resetTimer = useCallback(() => {
+    setAutoPlay(false);
+    setTimeout(() => setAutoPlay(true), 100);
+  }, []);
+
+  const handleSlideChange = (index) => {
+    setCurrentSlide(index);
+    resetTimer();
+  };
+
+  // Auto-advance slides
+  useEffect(() => {
+    let timer;
+    if (autoPlay) {
+      timer = setInterval(() => {
+        setCurrentSlide((prev) => (prev + 1) % slides.length);
+      }, 5000);
+    }
+
+    return () => clearInterval(timer);
+  }, [autoPlay, slides.length]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,22 +78,17 @@ const Auth = ({ onAuthenticate }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full bg-gray-800 p-8 rounded-2xl shadow-2xl border border-gray-700 space-y-6">
-        <div className="text-center">
-          <div className="flex justify-center">
-            <img src="/bodhini_logo_trans.png" alt="Bodhini Logo" className="h-18 w-16" />
-          </div>
-          <h2 className="mt-4 text-3xl font-bold text-gray-100">
-            Welcome to <span className="text-blue-500">Bodhini</span>
-          </h2>
-          <p className="mt-2 text-sm text-gray-400">
-            Your Intelligent Multilingual Assistant
-          </p>
-        </div>
-        {error && (
-          <div className="text-red-500 text-center mb-4">
-            {error}
-          </div>
-        )}
+      <div className="text-center">
+  <div className="flex justify-center">
+    <img src="/bodhini_logo_trans.png" alt="Bodhini Logo" className="h-18 w-16" />
+  </div>
+  <h2 className="mt-4 text-3xl font-bold text-gray-100">
+    Welcome to <span className="text-blue-500">Bodhini</span>
+  </h2>
+  <p className="mt-2 text-sm text-gray-400">
+    Your Intelligent Multilingual Assistant
+  </p>
+</div>
         <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div className="relative">
@@ -88,10 +125,7 @@ const Auth = ({ onAuthenticate }) => {
           <button
             type="button"
             className="text-sm font-medium text-blue-500 hover:underline hover:text-blue-400 transition-colors"
-            onClick={() => {
-              setIsLogin(!isLogin);
-              setError('');
-            }}
+            onClick={() => setIsLogin(!isLogin)}
           >
             {isLogin
               ? "Don't have an account? Sign up"

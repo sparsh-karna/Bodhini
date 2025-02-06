@@ -8,7 +8,11 @@ import {
 import ReactMarkdown from 'react-markdown';
 import { marked } from 'marked';
 
+import AudioRecordingIndicator from './AudioRecordingIndicator';
+
+
 const ChatInterface = ({ category }) => {
+  const [showWelcome, setShowWelcome] = useState(true);
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [showServices, setShowServices] = useState(false);
@@ -63,6 +67,8 @@ const ChatInterface = ({ category }) => {
     { icon: Bell, title: 'Subscription', description: 'Manage recurring services' },
   ];
 
+  const [selectedService, setSelectedService] = useState(null);
+
   const getServicesByCategory = (category) => {
     switch (category) {
       case 'Government Services':
@@ -74,13 +80,13 @@ const ChatInterface = ({ category }) => {
       case 'Reservations':
         return reservationServices;
       case 'Orders & Delivery':
-          return orderAndServiceServices;
-      
+        return orderAndServiceServices;
       default:
         return [];
     }
   };
 
+  
   const getCategoryQuickActions = (category) => {
     switch (category) {
       case 'Government Services':
@@ -122,6 +128,24 @@ const ChatInterface = ({ category }) => {
     }
   };
 
+   
+  const getCategoryHeading = (category) => {
+    switch (category) {
+      case 'Government Services':
+        return 'What will you apply for?';
+      case 'Travel':
+        return 'Where will you go?';
+      case 'Calendar':
+        return 'What will you schedule?';
+      case 'Reservations':
+        return 'What will you book?';
+      case 'Orders & Delivery':
+        return 'What will you order?';
+      default:
+        return 'How can we help?';
+    }
+  };
+
 
 
   const scrollToBottom = () => {
@@ -140,23 +164,18 @@ const ChatInterface = ({ category }) => {
   }, [messages]);
 
   useEffect(() => {
+    // Reset state when category changes
     setMessages([]);
     setShowServices(true);
-    const welcomeMessage = `Welcome ${category}! How can I assist you today?`;
-    setMessages([
-      {
-        id: Date.now().toString(),
-        text: welcomeMessage,
-        sender: 'bot',
-        timestamp: new Date(),
-      },
-    ]);
   }, [category]);
   
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!message.trim()) return;
+
+    // Hide welcome screen on first message
+    setShowWelcome(false);
 
     const userMessage = {
       id: Date.now().toString(),
@@ -167,7 +186,7 @@ const ChatInterface = ({ category }) => {
 
     setMessages((prev) => [...prev, userMessage]);
     setMessage('');
-    setLoading(true); // Set loading to true when starting to fetch the response
+    setLoading(true);// Set loading to true when starting to fetch the response
   
     // Fetch response from Flask backend with session ID
     try {
@@ -228,7 +247,10 @@ const ChatInterface = ({ category }) => {
     }, 1000);
   };
 
-  const handleServiceClick = (service) => {
+  const handleServiceClick = async (service) => {
+    setSelectedService(service);
+    setShowServices(false);
+    
     const userMessage = {
       id: Date.now().toString(),
       text: `I need help with ${service.title}`,
@@ -241,7 +263,7 @@ const ChatInterface = ({ category }) => {
     setTimeout(() => {
       const botMessage = {
         id: (Date.now() + 1).toString(),
-        text: `I'll help you with ${service.title}. What specific assistance do you need with ${service.description.toLowerCase()}?`,
+        text: ``,
         sender: 'bot',
         timestamp: new Date(),
       };
@@ -365,25 +387,63 @@ const ChatInterface = ({ category }) => {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-gray-900">
+    <div className="flex flex-col h-screen bg-gray-900">
+
       {/* Chat Messages Area */}
-      <div className="flex-1 p-4 overflow-y-auto bg-gradient-to-br from-gray-900 via-gray-800 to-gray-1200">
+      <div className="flex-1 p-4 overflow-y-auto bg-gradient-to-br from-gray-900 via-gray-800 to-gray-1200 h-[calc(100vh-150px)]">
         <div className="max-w-3xl mx-auto space-y-4">
-          {showServices && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-              {getServicesByCategory(category).map((service, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleServiceClick(service)}
-                  className="bg-gray-800 p-4 rounded-lg shadow-md border border-gray-700 hover:border-blue-600 hover:shadow-lg transition-all duration-200 flex flex-col items-center text-center"
-                >
-                  <service.icon className="h-8 w-8 text-blue-500 mb-2" />
-                  <h3 className="font-medium text-gray-100 mb-1">{service.title}</h3>
-                  <p className="text-sm text-gray-400">{service.description}</p>
-                </button>
-              ))}
+          
+        {!selectedService && (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+  
+  </div>
+)}
+
+{showServices && (
+            <div className="mt-24 mb-12">
+              <h1 className="text-5xl font-bold text-white text-center mb-24">
+                {getCategoryHeading(category)}
+              </h1>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {getServicesByCategory(category).map((service, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleServiceClick(service)}
+                    className="bg-gray-800 p-4 rounded-lg shadow-md border border-gray-700 hover:border-blue-600 hover:shadow-lg transition-all duration-200 flex flex-col items-center text-center"
+                  >
+                    <service.icon className="h-8 w-8 text-blue-500 mb-2" />
+                    <h3 className="font-medium text-gray-100 mb-1">{service.title}</h3>
+                    <p className="text-sm text-gray-400">{service.description}</p>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
+
+
+{selectedService && (
+  <div className="bg-gray-800 p-4 rounded-lg shadow-md border border-blue-600 mb-6">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center space-x-4">
+        <selectedService.icon className="h-8 w-8 text-blue-500" />
+        <div>
+          <h3 className="font-medium text-gray-100">{selectedService.title}</h3>
+          <p className="text-sm text-gray-400">{selectedService.description}</p>
+        </div>
+      </div>
+      <button 
+        onClick={() => {
+          setSelectedService(null);
+          setShowServices(true);
+          setMessages([]);
+        }}
+        className="text-gray-400 hover:text-blue-500 transition-colors"
+      >
+        Back to Services
+      </button>
+    </div>
+  </div>
+)}
 
     {messages.map((msg) => (
       <div
@@ -464,20 +524,22 @@ const ChatInterface = ({ category }) => {
   </div>
 </div>
 
-      {/* Quick Actions */}
-      <div className="bg-gray-800 px-4 py-2 border-t border-gray-700">
-        <div className="max-w-3xl mx-auto flex gap-2 overflow-x-auto pb-2">
-          {getCategoryQuickActions(category).map((action) => (
-            <button
-              key={action.id}
-              onClick={() => handleQuickAction(action)}
-              className="whitespace-nowrap px-4 py-2 bg-gray-700 border border-gray-600 rounded-full text-sm text-gray-200 hover:border-blue-500 hover:text-blue-500 transition-colors duration-200"
-            >
-              {action.text}
-            </button>
-          ))}
+      {/* Quick Actions - only shown for default case */}
+      {!category && (
+        <div className="bg-gray-800 px-4 py-2 border-t border-gray-700">
+          <div className="max-w-3xl mx-auto flex gap-2 overflow-x-auto pb-2">
+            {getCategoryQuickActions(category).map((action) => (
+              <button
+                key={action.id}
+                onClick={() => handleQuickAction(action)}
+                className="whitespace-nowrap px-4 py-2 bg-gray-700 border border-gray-600 rounded-full text-sm text-gray-200 hover:border-blue-500 hover:text-blue-500 transition-colors duration-200"
+              >
+                {action.text}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Hidden File Inputs */}
       <input
@@ -497,59 +559,20 @@ const ChatInterface = ({ category }) => {
       />
 
 
-
       {/* Input Area */}
-      <div className="border-t border-gray-700 p-4 bg-gray-800">
-        <form onSubmit={handleSubmit} className="flex items-center space-x-4">
-          <div className="flex space-x-2">
-            <button
-              type="button"
-              className={`p-2 rounded-full hover:bg-gray-700 ${
-                isRecording ? 'text-red-500 bg-red-100' : 'text-gray-400 hover:text-blue-500'
-              } ${isProcessingSpeech ? 'opacity-50 cursor-not-allowed' : ''}`}
-              title={isProcessingSpeech ? 'Processing...' : 
-                    (isRecording ? 'Stop recording' : 'Start recording')}
-              onClick={isProcessingSpeech ? null : (isRecording ? stopRecording : startRecording)}
-              disabled={isProcessingSpeech}
-            >
-              <Mic className="h-5 w-5" />
-              {isProcessingSpeech && <span className="ml-2 text-xs">Processing...</span>}
-            </button>
-            <button
-              type="button"
-              className="p-2 rounded-full text-gray-400 hover:text-blue-500"
-              title="Upload image"
-              onClick={() => document.getElementById('image-upload').click()}
-            >
-              <Image className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              className="p-2 rounded-full text-gray-400 hover:text-blue-500"
-              title="Upload document"
-              onClick={() => document.getElementById('document-upload').click()}
-            >
-              <FileText className="h-5 w-5" />
-            </button>
-          </div>
-
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Type your message..."
-            className="flex-1 bg-gray-700 text-white rounded-full px-4 py-2 text-sm"
-          />
-
-          <button
-            type="submit"
-            className="p-2 rounded-full text-gray-400 hover:text-blue-500"
-            disabled={!message.trim()}
-          >
-            <Send className="h-5 w-5" />
-          </button>
-        </form>
-      </div>
+<div className="border-t border-gray-700 p-4 bg-gray-800">
+  <AudioRecordingIndicator 
+    isRecording={isRecording} 
+    isProcessingSpeech={isProcessingSpeech} 
+    message={message} 
+    onMessageChange={(e) => setMessage(e.target.value)} 
+    onStartRecording={startRecording} 
+    onStopRecording={stopRecording} 
+    onSubmit={handleSubmit} 
+    onImageUpload={() => document.getElementById('image-upload').click()} 
+    onDocumentUpload={() => document.getElementById('document-upload').click()} 
+  />
+</div>
     </div>
   );
 };
