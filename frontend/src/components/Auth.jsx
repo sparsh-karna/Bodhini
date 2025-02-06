@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrainCog, Lock, Mail } from 'lucide-react';
 import PropTypes from 'prop-types';
-import axios from 'axios';
 
 const Auth = ({ onAuthenticate }) => {
   const [isLogin, setIsLogin] = useState(true);
@@ -42,21 +41,40 @@ const Auth = ({ onAuthenticate }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
+  
     try {
       const endpoint = isLogin ? '/login' : '/register';
-      const response = await axios.post(`http://localhost:5001${endpoint}`, {
-        email,
-        password
-      });
-
-      if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('userId', response.data.userId);
-        onAuthenticate();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+  
+      const response = await fetch(`http://localhost:5001${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ email, password }),
+        signal: controller.signal
+      }).finally(() => clearTimeout(timeoutId));
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
+  
+      const data = await response.json();
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('userId', data.userId);
+      onAuthenticate();
+  
     } catch (err) {
-      setError(err.response?.data?.message || 'An error occurred');
+      if (err.name === 'AbortError') {
+        setError('Request timed out. Please try again.');
+      } else if (err.message === 'Failed to fetch') {
+        setError('Unable to connect to server. Please check your connection.');
+      } else {
+        setError(err.message || 'An error occurred during authentication.');
+      }
     }
   };
 

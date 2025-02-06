@@ -17,6 +17,11 @@ from langchain_core.documents import Document
 from typing import List, Dict
 from transformers import AutoModel, AutoTokenizer
 import requests
+from browser_use import Agent
+from browser_use.agent.service import Agent
+from browser_use.browser.browser import Browser, BrowserConfig, BrowserContextConfig
+import asyncio
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -32,8 +37,119 @@ jwt = JWTManager(app)
 
 # MongoDB Setup
 client = MongoClient(os.getenv('MONGO_URI'))
-db = client['auth_db']
-users_collection = db['users']
+db = client['Bodhini']
+users_collection = db['Users']
+
+@app.route('/automate-order', methods=['POST'])
+async def automate_order():
+    try:
+        data = request.get_json()
+        order_details = data.get('orderDetails', {})
+        
+        # First response with required details
+        if not order_details:
+            required_details = {
+                "message": "To process your Amazon order, I need the following essential details:",
+                "required_fields": [
+                    {
+                        "field": "mobile_number",
+                        "description": "Your Amazon account mobile number"
+                    },
+                    {
+                        "field": "password",
+                        "description": "Your Amazon account password"
+                    },
+                    {
+                        "field": "product",
+                        "description": "Product you want to order (e.g., 'iPad')"
+                    },
+                    {
+                        "field": "max_price",
+                        "description": "Maximum price you're willing to pay"
+                    },
+                    {
+                        "field": "specific_model",
+                        "description": "Specific model preferences (if any)"
+                    }
+                ],
+                "security_note": "Your credentials will be used only for this automation and won't be stored."
+            }
+            return jsonify(required_details), 200
+        
+        # Validate required fields
+        required_fields = ['mobile_number', 'password', 'product']
+        missing_fields = [field for field in required_fields if field not in order_details]
+        
+        if missing_fields:
+            return jsonify({
+                "message": f"Missing required fields: {', '.join(missing_fields)}",
+                "status": "error"
+            }), 400
+        
+        # Once details are provided, construct the automation task
+        task = f"""
+        Place an order on Amazon using these steps:
+        1. Go to https://amazon.in/
+        2. Click on 'hello, sign in' option on top right of the screen
+        3. Click on Sign In
+        4. Enter the mobile number: {order_details['mobile_number']}
+        5. Enter the password: {order_details['password']}
+        6. Click on the Search Bar
+        7. Fill in '{order_details['product']}' and click on the search icon
+        8. Click on 'Add to Cart' button of the first {order_details['product']} visible on screen
+        9. Click on 'Go to Cart' button on the right sidebar of the screen
+        10. Click on yellow coloured 'Proceed to buy' button on the right side of the screen
+        """
+        
+        if 'max_price' in order_details:
+            task += f"\nNote: Only proceed if product price is less than {order_details['max_price']}"
+            
+        if 'specific_model' in order_details:
+            task += f"\nNote: Look for model matching '{order_details['specific_model']}'"
+        
+        # Initialize browser and agent (as in your original code)
+        browser = Browser(
+            config=BrowserConfig(
+                headless=False,
+                disable_security=True,
+                new_context_config=BrowserContextConfig(
+                    disable_security=True,
+                    minimum_wait_page_load_time=1,
+                    maximum_wait_page_load_time=10,
+                    browser_window_size={
+                        'width': 1280,
+                        'height': 1100,
+                    },
+                ),
+            )
+        )
+
+        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", api_key=os.getenv("GENAI_API_KEY"))
+        
+        agent = Agent(
+            task=task,
+            llm=llm,
+            browser=browser,
+            validate_output=True,
+        )
+        
+        # Run automation
+        history = await agent.run(max_steps=50)
+        
+        return jsonify({
+            "message": "Order automation completed successfully",
+            "status": "success",
+            "order_summary": {
+                "product": order_details['product'],
+                "timestamp": str(datetime.now())
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "message": f"Error in order automation: {str(e)}",
+            "status": "error"
+        }), 500
 
 # Authentication Routes
 @app.route('/register', methods=['POST'])
@@ -65,9 +181,9 @@ def login():
 
 
 # Debug print statements to verify environment variables
-print("GENAI_API_KEY:", os.getenv("GENAI_API_KEY"))
-print("GOOGLE_API_KEY:", os.getenv("GOOGLE_API_KEY"))
-print("SARVAM_API_KEY:", os.getenv("SARVAM_API_KEY"))
+# print("GENAI_API_KEY:", os.getenv("GENAI_API_KEY"))
+# print("GOOGLE_API_KEY:", os.getenv("GOOGLE_API_KEY"))
+# print("SARVAM_API_KEY:", os.getenv("SARVAM_API_KEY"))
 
 # Keyword list
 INSURANCE_KEYWORDS = {
@@ -100,9 +216,6 @@ def contains_insurance_keywords(query: str) -> bool:
             return True
             
     return False
-# Initialize Flask app
-app = Flask(__name__)
-CORS(app)
 
 class SpeechProcessor:
     def __init__(self):
