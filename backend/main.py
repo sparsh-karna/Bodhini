@@ -22,6 +22,9 @@ from browser_use.agent.service import Agent
 from browser_use.browser.browser import Browser, BrowserConfig, BrowserContextConfig
 import asyncio
 from datetime import datetime
+from langchain_groq import ChatGroq
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import JsonOutputParser
 
 # Load environment variables
 load_dotenv()
