@@ -280,62 +280,69 @@ const ChatInterface = ({ category }) => {
   
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!message.trim()) return;
-  
-    const userMessage = {
-      id: Date.now().toString(),
-      text: message,
-      sender: 'user',
-      timestamp: new Date(),
-    };
-  
-    setMessages(prev => [...prev, userMessage]);
-    setMessage('');
-    
-    // Check if we're in Orders & Delivery section and collecting order details
-    if (category === 'Orders & Delivery' && (collectingOrderDetails || message.toLowerCase().includes('order'))) {
-      await handleOrderMessage(message);
-  
-    } else {
-      // Existing chat logic
-      setLoading(true);
-      try {
-        const response = await fetch('http://localhost:5001/chat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            message, 
-            session_id: sessionId 
-          }),
-        });
-        const data = await response.json();
-      
-        const botMessage = {
-          id: (Date.now() + 1).toString(),
-          text: data.response,
-          sender: 'bot',
-          timestamp: new Date(),
-        };
-  
-        setMessages(prev => [...prev, botMessage]);
-      } catch (error) {
-        console.error('Error fetching from backend:', error);
-        const botMessage = {
-          id: (Date.now() + 1).toString(),
-          text: 'Sorry, there was an error processing your request. Please try again later.',
-          sender: 'bot',
-          timestamp: new Date(),
-        };
-  
-        setMessages(prev => [...prev, botMessage]);
-      } finally {
-        setLoading(false);
-      }
-    }
+  e.preventDefault();
+  if (!message.trim()) return;
+
+  const userMessage = {
+    id: Date.now().toString(),
+    text: message,
+    sender: 'user',
+    timestamp: new Date(),
   };
+
+  setMessages(prev => [...prev, userMessage]);
+  setMessage('');
+  
+  // Check if we're in Orders & Delivery section and collecting order details
+  if (category === 'Orders & Delivery' && (collectingOrderDetails || message.toLowerCase().includes('order'))) {
+    await handleOrderMessage(message);
+
+  } else {
+    // Existing chat logic
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:5001/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          message, 
+          session_id: sessionId 
+        }),
+      });
+      const data = await response.json();
+      
+      // Store language detection info if available
+      const languageInfo = data.detected_language ? 
+        `[${data.detected_language.toUpperCase()}]` : '';
+    
+      const botMessage = {
+        id: (Date.now() + 1).toString(),
+        text: data.response,
+        sender: 'bot',
+        timestamp: new Date(),
+        languageInfo: languageInfo, // Add language info to message object
+        originalMessage: data.original_message // Store original message if translated
+      };
+
+      setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error('Error fetching from backend:', error);
+      const botMessage = {
+        id: (Date.now() + 1).toString(),
+        text: 'Sorry, there was an error processing your request. Please try again later.',
+        sender: 'bot',
+        timestamp: new Date(),
+      };
+
+      setMessages(prev => [...prev, botMessage]);
+    } finally {
+      setLoading(false);
+    }
+  }
+};
+
 
   const handleQuickAction = (action) => {
     const userMessage = {
@@ -563,12 +570,26 @@ const ChatInterface = ({ category }) => {
         className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
       >
         <div
-          className={`max-w-lg rounded-lg px-4 py-2 ${msg.sender === 'user' ? 'bg-blue-700 text-white' : 'bg-gray-800 text-gray-200 border border-gray-700'}`}
+          className={`max-w-lg rounded-lg px-4 py-2 ${
+            msg.sender === 'user' ? 'bg-blue-700 text-white' : 'bg-gray-800 text-gray-200 border border-gray-700'
+          }`}
         >
+          {/* Display language indicator if available */}
+          {msg.languageInfo && (
+            <span className="text-xs text-gray-400 mb-1 block">
+              {msg.languageInfo}
+            </span>
+          )}
+          
           {msg.sender === 'bot' ? (
             <ReactMarkdown>{msg.text}</ReactMarkdown>
           ) : (
             <p>{msg.text}</p>
+          )}
+          {msg.originalMessage && msg.originalMessage !== msg.text && (
+            <div className="text-xs text-gray-400 mt-1 italic">
+              Original: {msg.originalMessage}
+            </div>
           )}
           {msg.media && (
             <div className="mt-2">
@@ -605,7 +626,7 @@ const ChatInterface = ({ category }) => {
       </div>
     ))}
     {/* Move loading indicator to the side */}
-    {loading && (
+    {(loading || isProcessingSpeech) && (
   <div className="flex justify-left mt-4">
     <div className="flex justify-center items-center mt-4">
   <div className="w-8 h-8 border-4 border-t-4 border-blue-500 rounded-full animate-pulse"></div>
