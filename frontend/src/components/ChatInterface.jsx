@@ -251,7 +251,7 @@ const ChatInterface = ({ category }) => {
       case 'Orders & Delivery':
         return 'What will you order?';
       default:
-        return 'How can we help?';
+        return <img src="greeting.png" />;
     }
   };
 

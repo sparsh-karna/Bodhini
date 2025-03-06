@@ -108,4 +108,3 @@ function getLanguageName(languageCode) {
         'pt-BR': 'Portuguese (Brazil)'
     };
     return languageMap[languageCode] || languageCode;
-}
