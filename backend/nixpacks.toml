@@ -1,8 +1,0 @@
-[start]
-cmd = "gunicorn main:app"
-
-[env]
-# Environment variables for your app
-GENAI_API_KEY="AIzaSyD-6xNB4ji95hytnvkUKfdhDRlRpsO-tHY"
-GOOGLE_API_KEY="AIzaSyDC1PXjCGivanw_m80rGDMnZYlQneO1kSw"
-SARVAM_API_KEY="d9a19832-fcfe-477c-908b-c355ddc02951"

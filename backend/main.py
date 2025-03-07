@@ -1,9 +1,12 @@
 import os
 import numpy as np
+import time
 import re
 from fuzzywuzzy import fuzz
 import torch
+import json
 from dotenv import load_dotenv
+from werkzeug.utils import secure_filename
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
@@ -25,6 +28,12 @@ from datetime import datetime
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
+import tempfile
+from database_create import DocumentProcessor
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from typing import List, Dict, Any, Tuple
 
 # Load environment variables
 load_dotenv()
@@ -42,6 +51,59 @@ jwt = JWTManager(app)
 client = MongoClient(os.getenv('MONGO_URI'))
 db = client['Bodhini']
 users_collection = db['Users']
+
+@app.route('/process-pdf', methods=['POST'])
+def process_pdf():
+    if 'pdf' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    
+    file = request.files['pdf']
+    session_id = request.form.get('session_id', 'default_session')
+    
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+    
+    if file and file.filename.endswith('.pdf'):
+        # Create a temporary file to save the uploaded PDF
+        temp_dir = tempfile.mkdtemp()
+        file_path = os.path.join(temp_dir, secure_filename(file.filename))
+        file.save(file_path)
+        
+        try:
+            # Initialize the document processor with the existing database path
+            processor = DocumentProcessor(persist_directory="./vector_db")
+            
+            # Process the PDF file
+            documents = processor.process_pdf(file_path)
+            
+            if documents:
+                # Load the existing vector store
+                vector_store = Chroma(
+                    persist_directory="./vector_db",
+                    embedding_function=processor.embeddings
+                )
+                
+                # Add the new documents to the existing vector store
+                vector_store.add_documents(documents)
+                
+                return jsonify({
+                    "response": f"Successfully processed '{file.filename}' and added {len(documents)} chunks to the existing database.",
+                    "chunks_processed": len(documents)
+                })
+            else:
+                return jsonify({
+                    "response": f"Could not extract any text from '{file.filename}'. Please make sure it's a valid PDF with text content.",
+                    "chunks_processed": 0
+                })
+                
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        finally:
+            # Clean up the temporary file
+            os.remove(file_path)
+            os.rmdir(temp_dir)
+    
+    return jsonify({"error": "Only PDF files are allowed"}), 400
 
 @app.route('/automate-order', methods=['POST'])
 async def automate_order():
@@ -201,7 +263,7 @@ INSURANCE_KEYWORDS = {
     "death claim", "maturity claim", "surrender policy", "lapse policy", "renew policy", "refund premium",
     "settlement", "bonus calculation", "loan against policy", "free-look period", "tax benefits",
     "section 80C", "income tax rebate", "nominee", "sum insured", "accidental cover", "health rider",
-    "wealth creation", "financial planning", "policy bond"
+    "wealth creation", "financial planning", "policy bond", "fingerprint"
 }
 
 def contains_insurance_keywords(query: str) -> bool:
@@ -283,6 +345,168 @@ class SpeechProcessor:
         except Exception as e:
             print(f"Translation Error: {e}")
             return None
+        
+class LLMExplainableAI:
+    """Provides LLM-generated explanations for AI reasoning and response generation."""
+    
+    def __init__(self, llm):
+        """
+        Initialize the Explainable AI module with an LLM.
+        
+        Args:
+            llm: A language model that can be used to generate explanations
+        """
+        self.llm = llm
+        self.parser = JsonOutputParser()
+        
+    def generate_explanation_prompt(self, query: str, retrieved_docs: List[Dict], 
+                                chat_history: List[Dict], response: str) -> str:
+        """
+        Generate a detailed prompt for the LLM to explain its reasoning process.
+        
+        Args:
+            query: The user's original query
+            retrieved_docs: List of retrieved documents with their content and scores
+            chat_history: Previous conversation turns
+            response: The generated response
+            
+        Returns:
+            A detailed prompt for the explanation LLM
+        """
+        # Format retrieved documents for the prompt
+        docs_formatted = ""
+        if retrieved_docs:
+            for i, (doc, score) in enumerate(retrieved_docs[:3], 1):  # Limit to top 3 for prompt clarity
+                docs_formatted += f"Document {i} (Relevance: {score:.2f}):\n{doc.page_content[:500]}...\n\n"
+        else:
+            docs_formatted = "No documents were retrieved for this query.\n"
+            
+        # Format chat history
+        history_formatted = ""
+        if chat_history and len(chat_history) > 1:  # At least one turn (excluding current)
+            history_formatted = "Recent conversation history:\n"
+            # Get last 2 turns maximum (4 messages: user, assistant, user, assistant)
+            relevant_history = chat_history[:-1][-4:] if len(chat_history) > 4 else chat_history[:-1]
+            for msg in relevant_history:
+                role = "User" if msg['role'] == 'user' else "Assistant"
+                # Truncate very long messages
+                content = msg['content']
+                if len(content) > 200:
+                    content = content[:200] + "..."
+                history_formatted += f"{role}: {content}\n"
+        else:
+            history_formatted = "No prior conversation history.\n"
+        
+        # Create the prompt for explanation generation
+        prompt = f"""You are an explainable AI assistant that helps users understand how a RAG (Retrieval-Augmented Generation) system processes their query.
+        
+        Here is the information about the current query processing:
+        
+        USER QUERY:
+        "{query}"
+        
+        RETRIEVED INFORMATION:
+        {docs_formatted}
+        
+        CONVERSATION HISTORY:
+        {history_formatted}
+        
+        GENERATED RESPONSE:
+        "{response[:300]}..."
+        
+        Based on this information, provide a detailed reasoning trace of how the system processed this query and generated the response.
+        Be specific and insightful in your explanations. Think step by step.
+        
+        Structure your reasoning using these components:
+        1. Query Analysis: Break down what the user is asking for and identify key concepts, intent, and any domain-specific terminology
+        2. Retrieval Analysis: Analyze what information was retrieved, why it's relevant or not relevant, and how the retrieval process worked
+        3. Context Integration: Explain how the retrieved information connects with the prior conversation and user's needs
+        4. Evidence Evaluation: Assess the quality, relevance, and reliability of the evidence used to form the response
+        5. Response Strategy: Describe the approach taken to construct a helpful response based on the available evidence
+        
+        YOUR OUTPUT MUST BE VALID JSON with the following structure:
+        {{
+            "query_analysis": "explanation of query understanding",
+            "retrieval_analysis": "analysis of retrieved information",
+            "context_integration": "how this connects with prior conversation",
+            "evidence_evaluation": "assessment of evidence quality",
+            "response_strategy": "approach to constructing the response"
+        }}
+        
+        Keep each explanation concise but insightful (1-3 sentences each).
+        ONLY GIVE THE JSON OUTPUT NOTHING OTHER THAN THAT.
+        """
+        return prompt
+    
+    async def generate_explanation(self, query: str, retrieved_docs: List, 
+                               chat_history: List, response: str) -> Dict:
+        """
+        Generate a complete explanation for the AI's reasoning process using the LLM.
+        
+        Args:
+            query: The user's original query
+            retrieved_docs: List of retrieved documents with their content and scores
+            chat_history: Previous conversation turns 
+            response: The generated response
+            
+        Returns:
+            A dictionary containing explanations for each reasoning step
+        """
+        try:
+            # Create the explanation prompt
+            explanation_prompt = self.generate_explanation_prompt(
+                query, retrieved_docs, chat_history, response
+            )
+            
+            # Generate the explanation using the LLM
+            explanation_message = HumanMessage(content=explanation_prompt)
+            llm_response = await self.llm.ainvoke([explanation_message])
+            print("Response",  llm_response)
+            
+            # Parse the JSON response
+            try:
+                # Try to extract JSON from the response
+                explanation_text = llm_response.content
+                
+                # Handle the case where the LLM might include extra text around the JSON
+                if "```json" in explanation_text:
+                    json_content = explanation_text.split("```json")[1].split("```")[0].strip()
+                elif "```" in explanation_text:
+                    json_content = explanation_text.split("```")[1].strip()
+                else:
+                    json_content = explanation_text
+                
+                explanation = json.loads(json_content)
+                
+                # Ensure all required keys are present
+                required_keys = ["query_analysis", "retrieval_analysis", "context_integration", 
+                                "evidence_evaluation", "response_strategy"]
+                for key in required_keys:
+                    if key not in explanation:
+                        explanation[key] = "No explanation provided for this step."
+                
+                return explanation
+            
+            except (json.JSONDecodeError, IndexError) as e:
+                print(f"Error parsing explanation JSON: {e}")
+                # Fallback explanation if JSON parsing fails
+                return {
+                    "query_analysis": "The system analyzed your query for key concepts and intent.",
+                    "retrieval_analysis": "Relevant information was searched based on your query.",
+                    "context_integration": "Your current query was considered in the context of the conversation.",
+                    "evidence_evaluation": "Available information was evaluated for relevance and accuracy.",
+                    "response_strategy": "A response was formulated based on the most relevant information."
+                }
+                
+        except Exception as e:
+            print(f"Error generating explanation: {e}")
+            return {
+                "query_analysis": "Error generating explanation.",
+                "retrieval_analysis": "Error generating explanation.",
+                "context_integration": "Error generating explanation.",
+                "evidence_evaluation": "Error generating explanation.",
+                "response_strategy": "Error generating explanation."
+            }
 
 class RAGChat:
     def __init__(self):
@@ -311,6 +535,8 @@ class RAGChat:
         # Chat History Management
         self.chat_histories: Dict[str, List] = {}
         self.MAX_HISTORY_LENGTH = 5
+
+        self.explainer = LLMExplainableAI(self.model)
 
     def cosine_similarity(self, vec1, vec2):
         """Compute cosine similarity between two vectors."""
@@ -351,8 +577,11 @@ class RAGChat:
         
         return history_context
 
-    def hybrid_retrieval(self, question: str, session_id: str = 'default') -> List[Document]:
+    def hybrid_retrieval(self, question: str, session_id: str = 'default') -> Tuple[List, float]:
         """Perform ensemble retrieval using multiple search methods."""
+        # Start timing the retrieval process
+        start_time = time.time()
+        
         # Enhance query with chat history context
         history_context = self.get_chat_context(session_id)
         enhanced_query = f"{question}"
@@ -374,29 +603,44 @@ class RAGChat:
             # Sort by relevance
             sorted_docs = sorted(scored_docs, key=lambda x: x[1], reverse=True)
             
-            return [doc for doc, _ in sorted_docs]
+            # Calculate retrieval time
+            retrieval_time = time.time() - start_time
+            
+            return sorted_docs, retrieval_time
         
         except Exception as e:
             print(f"Retrieval error: {e}")
-            return []
+            retrieval_time = time.time() - start_time
+            return [], retrieval_time
 
-    def get_chat_response(self, question: str, session_id: str = 'default') -> str:
-        """Generate response using ensemble retrieval and chat history."""
+
+    async def get_chat_response(self, question: str, session_id: str = 'default', explain: bool = False) -> Dict:
+        """Generate response using ensemble retrieval and chat history with optional explanation."""
         try:
+            print(f"Starting response generation for query: {question}")
+            
             # Add user's question to chat history
             self.add_to_chat_history(session_id, 'user', question)
+            print("Added user message to chat history.")
 
             context = ""
+            insurance_keywords_found = contains_insurance_keywords(question)
+            print(f"Insurance keywords found: {insurance_keywords_found}")
             
             # Retrieve relevant documents
-            if contains_insurance_keywords(question):
+            if insurance_keywords_found:
                 print("Triggering RAG search...")
-                relevant_docs = self.hybrid_retrieval(question, session_id)
-                print("Documents retrieved:", len(relevant_docs))
-                context = "\n\n".join([doc.page_content for doc in relevant_docs])
+                relevant_docs, retrieval_time = self.hybrid_retrieval(question, session_id)
+                print(f"Documents retrieved: {len(relevant_docs)}")
+                print(f"Retrieval time: {retrieval_time} seconds")
+                
+                # Extract document content for context
+                context = "\n\n".join([doc.page_content for doc, _ in relevant_docs])
+                print("Context extracted from documents.")
             else:
                 print("Skipping RAG search, directly invoking LLM...")
                 context = ""
+                relevant_docs, retrieval_time = [], 0
             
             # Enhanced system prompt
             system_prompt = """You are an AI assistant providing contextual information about government services, 
@@ -415,31 +659,62 @@ class RAGChat:
                         - **Eligibility:** Citizens above 18 years
                         - **Application Link:** [Click Here](https://example.com)
 
-                        Now generate a response strictly in this Markdown format."""  # Add more guidelines as needed
-                        
+                        Now generate a response strictly in this Markdown format."""
+                            
             # Include chat history in system message
             history_context = self.get_chat_context(session_id)
+            print("Chat history context compiled.")
+            
             system_message = SystemMessage(content=f"{system_prompt}\n\nContext:\n{context}\n\n{history_context}")
             user_message = HumanMessage(content=question)
+            print("System and user messages created.")
             
             # Generate response
+            print("Invoking LLM to generate response...")
             response = self.model.invoke([system_message, user_message])
+            response_content = response.content
+            print("Response generated by LLM.")
             
             # Add AI's response to chat history
-            self.add_to_chat_history(session_id, 'assistant', response.content)
+            self.add_to_chat_history(session_id, 'assistant', response_content)
+            print("Added bot response to chat history.")
             
-            return response.content
+            result = {"response": response_content}
+            
+            # Generate explanation if requested
+            if explain:
+                print("Generating explanation...")
+                explanation = await self.explainer.generate_explanation(
+                    query=question,
+                    retrieved_docs=relevant_docs,
+                    chat_history=self.chat_histories.get(session_id, []),
+                    response=response_content
+                )
+                result["explanation"] = explanation
+                print("Explanation generated.")
+            
+            return result
         
         except Exception as e:
             print(f"Response generation error: {e}")
-            return f"Sorry, I encountered an error: {str(e)}"
+            error_response = {"response": f"Sorry, I encountered an error: {str(e)}"}
+            if explain:
+                error_response["explanation"] = {
+                    "query_analysis": "Error occurred during processing",
+                    "retrieval_analysis": "Error occurred during processing",
+                    "context_integration": "Error occurred during processing",
+                    "evidence_evaluation": "Error occurred during processing",
+                    "response_strategy": "Error occurred during processing"
+                }
+            return error_response
+
 
 # Initialize RAGChat instance
 rag_chat = RAGChat()
 speech_processor = SpeechProcessor()
 
 @app.route('/speech-to-text', methods=['POST'])
-def process_speech():
+async def process_speech():
     try:
         if 'audio' not in request.files:
             return jsonify({'error': 'No audio file uploaded'}), 400
@@ -465,7 +740,7 @@ def process_speech():
             speech_text = translated_text
         
         # Get chat response
-        response = rag_chat.get_chat_response(speech_text, session_id)
+        response = await rag_chat.get_chat_response(speech_text, session_id)
         
         # Translate response back to detected language if necessary
         if detected_lang != 'en':
@@ -483,11 +758,12 @@ def process_speech():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/chat', methods=['POST'])
-def chat():
+async def chat():
     try:
         data = request.get_json()
         message = data.get('message', '')
         session_id = data.get('session_id', 'default')
+        explain = data.get('explain', False)  # Extract the explain flag
         
         if not message:
             return jsonify({'response': 'No message provided'}), 400
@@ -502,7 +778,8 @@ def chat():
                 return jsonify({'response': 'Translation failed'}), 500
             message = translated_message
         
-        response = rag_chat.get_chat_response(message, session_id)
+        # Pass the explain flag to get_chat_response
+        response = await rag_chat.get_chat_response(message, session_id, explain=explain)
         
         # Translate response back to detected language if necessary
         if detected_lang != 'en':
