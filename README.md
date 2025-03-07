@@ -1,4 +1,4 @@
-# Bodhini: Intelligent Multilingual Digital Assistant
+# Bodhini: Intelligent Multilingual Digital Assistant with Knowledge Retrieval
 
 ## 🌍 Project Vision
 
