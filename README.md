@@ -4,6 +4,19 @@
 
 Bodhini is an advanced AI-powered multilingual chatbot designed to break down communication barriers, offering intelligent, inclusive, and adaptive support across languages, abilities, and contexts.
 
+![Placeholder Image 1](https://via.placeholder.com/800x400.png?text=Demo+Image+1)
+![Placeholder Image 2](https://via.placeholder.com/800x400.png?text=Demo+Image+2)
+![Placeholder Image 3](https://via.placeholder.com/800x400.png?text=Demo+Image+3)
+
+## 🚀 Key Features
+
+- **Natural Language Understanding:** The assistant can understand and respond to user queries without predefined scripts.
+- **Dynamic Knowledge Retrieval:** It retrieves relevant answers from an integrated knowledge base dynamically.
+- **Contextual Conversations:** The assistant maintains context over multi-turn conversations.
+- **Voice-to-Text and Text-to-Speech:** Supports natural intonation for seamless voice interactions.
+- **Real-Time Responses:** Provides instant responses with minimal latency.
+- **Continuous Learning:** Improves responses based on user interactions over time.
+
 ## 🚀 Key Differentiators
 
 ### Comprehensive User Support
@@ -14,10 +27,15 @@ Bodhini is an advanced AI-powered multilingual chatbot designed to break down co
 ## 🔧 Technical Foundation
 
 ### Core Technologies
-- **AI Framework**: Google Generative AI (Gemini 1.5 Flash)
+
+- **Backend:** Flask (Python)
+- **Database:** MongoDB
+- **AI Models:** Google Generative AI (Gemini 1.5 Flash), Hugging Face Embeddings
+- **Vector Database:** Chroma
+- **Speech Processing:** Sarvam AI, Google Translation API
+- **Authentication:** JWT (JSON Web Tokens)
+- **Frontend Integration:** CORS-enabled API for seamless integration with web/mobile apps
 - **Embedding Model**: Sentence Transformers
-- **Vector Database**: Chroma
-- **Backend**: Python, Flask
 - **Deployment**: Containerized Microservices
 
 ## 🛡️ Feature Ecosystem
